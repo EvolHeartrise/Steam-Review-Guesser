@@ -72,8 +72,93 @@
     return s.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
   }
 
+  // ---------------------------------------------------------------------------
+  // Seen Games Storage (localStorage)
+  // ---------------------------------------------------------------------------
+
+  const SEEN_GAMES_KEY = "reviewGuesser_seenGames";
+
+  /**
+   * Get all seen games data from localStorage.
+   * @returns {Map<number, {appId: number, correct: boolean}>}
+   */
+  function getSeenGamesData() {
+    try {
+      const data = localStorage.getItem(SEEN_GAMES_KEY);
+      if (!data) return new Map();
+      const arr = JSON.parse(data);
+      const map = new Map();
+      
+      for (const item of arr) {
+        // Handle both old format (just numbers) and new format (objects)
+        if (typeof item === "number") {
+          map.set(item, { appId: item, correct: null });
+        } else if (item && typeof item === "object" && Number.isFinite(item.appId)) {
+          map.set(item.appId, { appId: item.appId, correct: item.correct });
+        }
+      }
+      return map;
+    } catch (e) {
+      console.warn("[ext] Failed to read seen games from storage", e);
+      return new Map();
+    }
+  }
+
+  /**
+   * Get the set of seen game IDs from localStorage.
+   * @returns {Set<number>}
+   */
+  function getSeenGames() {
+    const data = getSeenGamesData();
+    return new Set(data.keys());
+  }
+
+  /**
+   * Mark a game ID as seen with correctness info (store in localStorage).
+   * @param {number|string} appId
+   * @param {boolean} correct - Whether the guess was correct
+   */
+  function markGameAsSeen(appId, correct) {
+    try {
+      const id = Number(appId);
+      if (!Number.isFinite(id)) return;
+      const seen = getSeenGamesData();
+      seen.set(id, { appId: id, correct: Boolean(correct) });
+      localStorage.setItem(SEEN_GAMES_KEY, JSON.stringify([...seen.values()]));
+    } catch (e) {
+      console.warn("[ext] Failed to save seen game to storage", e);
+    }
+  }
+
+  /**
+   * Check if a game has been seen before.
+   * @param {number|string} appId
+   * @returns {boolean}
+   */
+  function hasSeenGame(appId) {
+    const id = Number(appId);
+    if (!Number.isFinite(id)) return false;
+    return getSeenGames().has(id);
+  }
+
+  /**
+   * Clear all seen games from storage.
+   */
+  function clearSeenGames() {
+    try {
+      localStorage.removeItem(SEEN_GAMES_KEY);
+    } catch (e) {
+      console.warn("[ext] Failed to clear seen games", e);
+    }
+  }
+
   // Expose on namespace
   ns.normalizeSpaces = normalizeSpaces;
   ns.parseReviewCountRaw = parseReviewCountRaw;
   ns.formatNum = formatNum;
+  ns.getSeenGames = getSeenGames;
+  ns.getSeenGamesData = getSeenGamesData;
+  ns.markGameAsSeen = markGameAsSeen;
+  ns.hasSeenGame = hasSeenGame;
+  ns.clearSeenGames = clearSeenGames;
 })(window);

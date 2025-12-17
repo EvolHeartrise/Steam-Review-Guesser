@@ -7,6 +7,7 @@
   const hideAllSteamReviewCounts = ns.hideAllSteamReviewCounts;
   const waitForAnyReviewCount = ns.waitForAnyReviewCount;
   const formatNum = ns.formatNum;
+  const markGameAsSeen = ns.markGameAsSeen;
 
   function buildGuessSet(trueCount) {
     const MIN_ANSWERS = 6;
@@ -269,14 +270,19 @@
         "Guess the All Reviews count (all languages).";
       wrap.appendChild(note);
 
-      const correct = trueCount;
+      const correctAnswer = trueCount;
       const mark = (picked) => {
         if (wrap.dataset.locked === "1") return;
         wrap.dataset.locked = "1";
+        
+        // Mark this game as seen when a guess is made, including whether guess was correct
+        const wasCorrect = picked === correctAnswer;
+        markGameAsSeen(appId, wasCorrect);
+        
         btns.forEach((btn) => {
           const val = parseInt(btn.dataset.value, 10);
-          if (val === correct) btn.classList.add("correct");
-          if (val === picked && val !== correct)
+          if (val === correctAnswer) btn.classList.add("correct");
+          if (val === picked && val !== correctAnswer)
             btn.classList.add("wrong");
           btn.disabled = true;
           btn.setAttribute("aria-disabled", "true");
