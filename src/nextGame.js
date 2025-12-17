@@ -280,8 +280,10 @@
   }
 
   /**
-   * Export all seen games data as a downloadable text file.
-   * Format: appId,correct (correct = 1 for correct, 0 for wrong, ? for unknown/legacy)
+   * Export all seen games data as a downloadable CSV file.
+   * Format: appId,correct,timestamp
+   * correct = 1 for correct, 0 for wrong, ? for unknown/legacy
+   * timestamp = ISO date string or empty for legacy entries
    */
   function exportSeenGames() {
     const seenGamesData = getSeenGamesData();
@@ -293,10 +295,11 @@
     }
 
     // Header line + data lines
-    const lines = ["appId,correct"];
+    const lines = ["appId,correct,timestamp"];
     for (const entry of entries) {
       const correctStr = entry.correct === true ? "1" : entry.correct === false ? "0" : "?";
-      lines.push(`${entry.appId},${correctStr}`);
+      const timestampStr = entry.timestamp ? new Date(entry.timestamp).toISOString() : "";
+      lines.push(`${entry.appId},${correctStr},${timestampStr}`);
     }
 
     const content = lines.join("\n");

@@ -80,7 +80,7 @@
 
   /**
    * Get all seen games data from localStorage.
-   * @returns {Map<number, {appId: number, correct: boolean}>}
+   * @returns {Map<number, {appId: number, correct: boolean, timestamp: number|null}>}
    */
   function getSeenGamesData() {
     try {
@@ -92,9 +92,13 @@
       for (const item of arr) {
         // Handle both old format (just numbers) and new format (objects)
         if (typeof item === "number") {
-          map.set(item, { appId: item, correct: null });
+          map.set(item, { appId: item, correct: null, timestamp: null });
         } else if (item && typeof item === "object" && Number.isFinite(item.appId)) {
-          map.set(item.appId, { appId: item.appId, correct: item.correct });
+          map.set(item.appId, { 
+            appId: item.appId, 
+            correct: item.correct,
+            timestamp: item.timestamp || null
+          });
         }
       }
       return map;
@@ -123,7 +127,11 @@
       const id = Number(appId);
       if (!Number.isFinite(id)) return;
       const seen = getSeenGamesData();
-      seen.set(id, { appId: id, correct: Boolean(correct) });
+      seen.set(id, { 
+        appId: id, 
+        correct: Boolean(correct),
+        timestamp: Date.now()
+      });
       localStorage.setItem(SEEN_GAMES_KEY, JSON.stringify([...seen.values()]));
     } catch (e) {
       console.warn("[ext] Failed to save seen game to storage", e);
