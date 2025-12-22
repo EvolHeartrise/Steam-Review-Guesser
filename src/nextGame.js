@@ -204,6 +204,7 @@
     const pureBtn = makeNextGameButton("Next (Raw)", "pure");
     const smartBtn = makeNextGameButton("Next (Balanced)", "smart");
     const exportBtn = makeExportSeenGamesButton();
+    const importBtn = makeImportSeenGamesButton();
 
     const row = document.createElement("div");
     row.style.marginTop = "10px";
@@ -212,6 +213,7 @@
     row.appendChild(pureBtn);
     row.appendChild(smartBtn);
     row.appendChild(exportBtn);
+    row.appendChild(importBtn);
 
     if (target && target.parentElement) {
       target.insertAdjacentElement("afterend", row);
@@ -242,11 +244,13 @@
     const pureBtn = makeNextGameButton("Next (Raw)", "pure");
     const smartBtn = makeNextGameButton("Next (Balanced)", "smart");
     const exportBtn = makeExportSeenGamesButton();
+    const importBtn = makeImportSeenGamesButton();
 
     // Let Steam's layout handle positioning; just drop them in order
     container.appendChild(pureBtn);
     container.appendChild(smartBtn);
     container.appendChild(exportBtn);
+    container.appendChild(importBtn);
   }
 
   // ---------------------------------------------------------------------------
@@ -315,9 +319,162 @@
     URL.revokeObjectURL(url);
   }
 
+  // ---------------------------------------------------------------------------
+  // Import Seen Games button
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Create a button that imports seen game IDs from a CSV file.
+   *
+   * @returns {HTMLAnchorElement}
+   */
+  function makeImportSeenGamesButton() {
+    const a = document.createElement("a");
+    a.className = "btnv6_blue_hoverfade btn_medium ext-import-seen";
+    a.href = "#";
+
+    const span = document.createElement("span");
+    span.textContent = "Import Seen";
+    a.appendChild(span);
+
+    a.addEventListener(
+      "click",
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Create file input dynamically each time to avoid DOM issues
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = ".csv,text/csv";
+        fileInput.style.cssText = "position:absolute;left:-9999px;opacity:0;";
+        document.body.appendChild(fileInput);
+
+        fileInput.addEventListener("change", () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (file) {
+            importSeenGames(file);
+          }
+          // Clean up
+          document.body.removeChild(fileInput);
+        });
+
+        // Also clean up if user cancels
+        fileInput.addEventListener("cancel", () => {
+          document.body.removeChild(fileInput);
+        });
+
+        // Trigger the file picker
+        fileInput.click();
+      },
+      { passive: false }
+    );
+
+    return a;
+  }
+
+  /**
+   * Import seen games data from a CSV file.
+   * Merges with existing data (existing entries are preserved, new entries are added).
+   * Format expected: appId,correct,timestamp (with header line)
+   *
+   * @param {File} file
+   */
+  function importSeenGames(file) {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+        if (lines.length === 0) {
+          alert("The CSV file is empty.");
+          return;
+        }
+
+        // Check if first line is a header
+        const firstLine = lines[0].toLowerCase();
+        const hasHeader = firstLine.includes("appid") || firstLine.includes("correct") || firstLine.includes("timestamp");
+        const dataLines = hasHeader ? lines.slice(1) : lines;
+
+        if (dataLines.length === 0) {
+          alert("No data found in CSV file (only header).");
+          return;
+        }
+
+        // Get existing data
+        const existingData = getSeenGamesData();
+        let importedCount = 0;
+        let skippedCount = 0;
+
+        for (const line of dataLines) {
+          const parts = line.split(",");
+          if (parts.length === 0) continue;
+
+          const appIdStr = parts[0].trim();
+          const appId = parseInt(appIdStr, 10);
+
+          if (!Number.isFinite(appId) || appId <= 0) {
+            skippedCount++;
+            continue;
+          }
+
+          // Parse correct field (1=true, 0=false, ?/empty=null)
+          let correct = null;
+          if (parts.length > 1) {
+            const correctStr = parts[1].trim();
+            if (correctStr === "1") correct = true;
+            else if (correctStr === "0") correct = false;
+          }
+
+          // Parse timestamp field
+          let timestamp = null;
+          if (parts.length > 2) {
+            const timestampStr = parts[2].trim();
+            if (timestampStr) {
+              const parsed = Date.parse(timestampStr);
+              if (Number.isFinite(parsed)) {
+                timestamp = parsed;
+              }
+            }
+          }
+
+          // Only add if not already existing (don't overwrite)
+          if (!existingData.has(appId)) {
+            existingData.set(appId, {
+              appId: appId,
+              correct: correct,
+              timestamp: timestamp
+            });
+            importedCount++;
+          } else {
+            skippedCount++;
+          }
+        }
+
+        // Save merged data
+        const SEEN_GAMES_KEY = "reviewGuesser_seenGames";
+        localStorage.setItem(SEEN_GAMES_KEY, JSON.stringify([...existingData.values()]));
+
+        alert(`Import complete!\n\nImported: ${importedCount} games\nSkipped (already seen or invalid): ${skippedCount}`);
+      } catch (err) {
+        console.error("[ext] Failed to import CSV", err);
+        alert("Failed to import CSV file. Please check the file format.");
+      }
+    };
+
+    reader.onerror = () => {
+      alert("Failed to read the file.");
+    };
+
+    reader.readAsText(file);
+  }
+
   // Expose on namespace
   ns.getReleasedAppIds = getReleasedAppIds;
   ns.installNextGameButtonOnOops = installNextGameButtonOnOops;
   ns.installNextGameButton = installNextGameButton;
   ns.exportSeenGames = exportSeenGames;
+  ns.importSeenGames = importSeenGames;
 })(window);
